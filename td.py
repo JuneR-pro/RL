@@ -23,8 +23,57 @@ Q-table: {[tuple,tuple,int]:[q_value_a0,q_value_a1]}
     1.状态：你的手牌点数，庄家翻开的牌，你是否拥有可用A |tuple[int,int,bool]
     2.动作：要牌 (再拿一张牌) 或停牌 (保留当前手牌)
 '''
+class SarsaAgent:
+    def __init__(
+            self,
+            env:gym.Env,
+            learning_rate:float,
+            initial_epsilon:float,
+            epsilon_decay:float,
+            final_epsilon:float,
+            discount_factor:float = 0.95,
+            ):
+        self.env =env
+        self.q_values=defaultdict(lambda:np.zeros(env.action_space.n))
 
-class BlackjackAgent:
+        self.alpha=learning_rate
+        self.discount_factor=discount_factor
+
+        self.epsilon=initial_epsilon
+        self.epsilon_decay=epsilon_decay
+        self.final_epsilon=final_epsilon
+
+        self.training_error=[]
+
+    def get_action(self,obs) -> int:
+    # 二十一点中obs: tuple[int,int,bool]  
+        if np.random.random() < self.epsilon:
+            return self.env.action_space.sample()
+        else:
+            return int(np.argmax(self.q_values[obs])) 
+    # 给出q值最大的列表索引
+
+    def update(
+            self,
+            obs,
+            action:int,
+            reward:float,
+            terminated:bool,
+            next_obs,
+    ) :
+        next_action=self.get_action(next_obs)
+        future_q_values=(not terminated)*self.q_values[next_obs][next_action]
+        target=reward+self.discount_factor*future_q_values
+        td=target-self.q_values[obs][action]
+        self.q_values[obs][action]=self.q_values[obs][action]+td
+
+        self.training_error.append(td)
+
+    def decay_epsilon(self):
+        self.epsilon=max(self.final_epsilon,self.epsilon-self.epsilon_decay)
+
+
+class QLearningAgent:
     def __init__(
             self,
             env:gym.Env,
@@ -47,8 +96,8 @@ class BlackjackAgent:
 
         self.training_error=[]
 
-    def get_action(self, obs: tuple[int,int,bool]) -> int:
-
+    def get_action(self, obs) -> int:
+    # 二十一点中obs: tuple[int,int,bool] 
         if np.random.random() < self.epsilon:
             return self.env.action_space.sample()
         else:
@@ -56,18 +105,16 @@ class BlackjackAgent:
         
     def update(
             self,
-            obs:tuple[int,int,bool],
+            obs,
             action:int,
             reward: float,
             terminated: bool,
-            next_obs:tuple[int,int,bool],
+            next_obs,
             ):
-
+    # 二十一点中obs: tuple[int,int,bool]
         future_q_value=(not terminated)*np.argmax(self.q_values[next_obs])
         target=reward + self.discount_factor*future_q_value
-
         td=target-self.q_values[obs][action]
-
         self.q_values[obs][action]=self.q_values[obs][action]+self.alpha*td
 
         self.training_error.append(td)
@@ -87,9 +134,10 @@ epsilon_decay=start_epsilon/ (n_episodes / 2)
 final_epsilon=0.1
 
 env=gym.make("Blackjack-v1",sab=False)
+# 二十一点环境
 env=gym.wrappers.RecordEpisodeStatistics(env,buffer_length=n_episodes)
-
-agent=BlackjackAgent(env=env,
+# 此封装器将跟踪累积奖励和剧集长度
+agent=SarsaAgent(env=env,
                      learning_rate=alpha,
                      initial_epsilon=start_epsilon,
                      epsilon_decay=epsilon_decay,
@@ -116,4 +164,5 @@ for episode in tqdm(range(n_episodes)):
         obs=next_obs
 
     agent.decay_epsilon()
+
 
