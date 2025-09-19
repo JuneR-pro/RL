@@ -31,7 +31,7 @@ class SarsaAgent:
             initial_epsilon:float,
             epsilon_decay:float,
             final_epsilon:float,
-            discount_factor:float = 0.95,
+            discount_factor:float = 0.97,
             ):
         self.env =env
         self.q_values=defaultdict(lambda:np.zeros(env.action_space.n))
@@ -61,16 +61,22 @@ class SarsaAgent:
             terminated:bool,
             next_obs,
     ) :
-        next_action=self.get_action(next_obs)
-        future_q_values=(not terminated)*self.q_values[next_obs][next_action]
-        target=reward+self.discount_factor*future_q_values
+        if terminated:
+            target = reward
+        else:
+            next_action = self.get_action(next_obs)
+            target = reward + self.discount_factor * self.q_values[next_obs][next_action]
+        # next_action=self.get_action(next_obs)
+        # future_q_values=(not terminated)*self.q_values[next_obs][next_action]
+        # target=reward+self.discount_factor*future_q_values
         td=target-self.q_values[obs][action]
-        self.q_values[obs][action]=self.q_values[obs][action]+td
+        self.q_values[obs][action]=self.q_values[obs][action]+self.alpha*td
 
         self.training_error.append(td)
 
     def decay_epsilon(self):
-        self.epsilon=max(self.final_epsilon,self.epsilon-self.epsilon_decay)
+        # self.epsilon=max(self.final_epsilon,self.epsilon-self.epsilon_decay)
+        self.epsilon=max(self.final_epsilon,self.epsilon*0.999)
 
 
 class QLearningAgent:
@@ -91,7 +97,7 @@ class QLearningAgent:
         self.discount_factor=discount_factor
 
         self.epsilon=initial_epsilon
-        self.epsilo_decay=epsilon_decay
+        self.epsilon_decay=epsilon_decay
         self.final_epsilon=final_epsilon
 
         self.training_error=[]
@@ -112,7 +118,7 @@ class QLearningAgent:
             next_obs,
             ):
     # 二十一点中obs: tuple[int,int,bool]
-        future_q_value=(not terminated)*np.argmax(self.q_values[next_obs])
+        future_q_value=(not terminated)*np.max(self.q_values[next_obs])
         target=reward + self.discount_factor*future_q_value
         td=target-self.q_values[obs][action]
         self.q_values[obs][action]=self.q_values[obs][action]+self.alpha*td
@@ -120,49 +126,11 @@ class QLearningAgent:
         self.training_error.append(td)
 
     def decay_epsilon(self):
-        self.epsilon=max(self.final_epsilon,self.epsilon-self.epsilo_decay)
-
-env=gym.make('Blackjack-v1')
-observation,info=env.reset(seed=42)
-print(f"starting observation:{observation},info:{info}")
+        self.epsilon=max(self.final_epsilon,self.epsilon-self.epsilon_decay)
+        # self.epsilon=max(self.final_epsilon,self.epsilon*0.995)
 
 
-alpha=0.01
-n_episodes=100000
-start_epsilon=1.0
-epsilon_decay=start_epsilon/ (n_episodes / 2)
-final_epsilon=0.1
 
-env=gym.make("Blackjack-v1",sab=False)
-# 二十一点环境
-env=gym.wrappers.RecordEpisodeStatistics(env,buffer_length=n_episodes)
-# 此封装器将跟踪累积奖励和剧集长度
-agent=SarsaAgent(env=env,
-                     learning_rate=alpha,
-                     initial_epsilon=start_epsilon,
-                     epsilon_decay=epsilon_decay,
-                     final_epsilon=final_epsilon,
-                     )
 
-from tqdm import tqdm
-'''
-训练
-'''
-for episode in tqdm(range(n_episodes)):
-
-    obs,info=env.reset()
-    done=False
-
-    while not done:
-
-        action=agent.get_action(obs)
-
-        next_obs,reward,terminated,truncated,info=env.step(action)
-        agent.update(obs,action,reward,terminated,next_obs)
-
-        done=terminated or truncated
-        obs=next_obs
-
-    agent.decay_epsilon()
 
 
